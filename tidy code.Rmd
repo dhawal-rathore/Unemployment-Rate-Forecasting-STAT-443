@@ -1,0 +1,207 @@
+---
+title: "s443 group project"
+author: "Jolin"
+date: "2026-03-26"
+output: html_document
+---
+
+-   **load and clean data set**
+    -   All data starts from Jan 1997 to Dec 2025
+-    Load libraries
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
+```
+
+-   read [employment by industry]{.underline} data in r (unit: 1000 people)
+
+```{r}
+employment_data <- read.csv("employment1.csv", header = FALSE, check.names = FALSE)
+
+industry_names_em <- employment_data[-1, 1]
+value_mat_em <- employment_data[-1, -1]
+
+value_mat_em[] <- lapply(value_mat_em, function(x) as.numeric(gsub(",", "", x)))
+value_mat_em <- as.matrix(value_mat_em)
+
+rownames(value_mat_em) <- industry_names_em
+```
+
+-   transform employment data of each industry into ts object
+
+```{r}
+# person in thousands
+
+total_ts <- ts(value_mat_em["Total, all industries", ], start = c(1997, 1), frequency = 12)
+
+goods_ts <- ts(value_mat_em["Goods-producing sector", ], start = c(1997, 1), frequency = 12)
+
+utilities_ts <- ts(value_mat_em["Utilities", ], start = c(1997, 1), frequency = 12)
+
+construction_ts <- ts(value_mat_em["Construction", ], start = c(1997, 1), frequency = 12)
+
+manufacturing_ts <- ts(value_mat_em["Manufacturing", ], start = c(1997, 1), frequency = 12)
+
+durables_ts <- ts(value_mat_em["Durables", ], start = c(1997, 1), frequency = 12)
+
+nondurables_ts <- ts(value_mat_em["Non-durables", ], start = c(1997, 1), frequency = 12)
+
+services_ts <- ts(value_mat_em["Services-producing sector", ], start = c(1997, 1), frequency = 12)
+
+wholesale_ts <- ts(value_mat_em["Wholesale trade", ], start = c(1997, 1), frequency = 12)
+
+retail_ts <- ts(value_mat_em["Retail trade", ], start = c(1997, 1), frequency = 12)
+
+transport_ts <- ts(value_mat_em["Transportation and warehousing", ], start = c(1997, 1), frequency = 12)
+
+finance_ts <- ts(value_mat_em["Finance and insurance", ], start = c(1997, 1), frequency = 12)
+
+real_estate_ts <- ts(value_mat_em["Real estate and rental and leasing", ], start = c(1997, 1), frequency = 12)
+
+professional_ts <- ts(value_mat_em["Professional, scientific and technical services", ], start = c(1997, 1), frequency = 12)
+
+educational_ts <- ts(value_mat_em["Educational services", ], start = c(1997, 1), frequency = 12)
+
+health_ts <- ts(value_mat_em["Health care and social assistance", ], start = c(1997, 1), frequency = 12)
+
+info_ts <- ts(value_mat_em["Information, culture and recreation", ], start = c(1997, 1), frequency = 12)
+
+accommodation_ts <- ts(value_mat_em["Accommodation and food services", ], start = c(1997, 1), frequency = 12)
+
+other_ts <- ts(value_mat_em["Other services (except public administration)", ], start = c(1997, 1), frequency = 12)
+
+public_ts <- ts(value_mat_em["Public administration", ], start = c(1997, 1), frequency = 12)
+
+## no matching gdp
+business_ts <- ts(value_mat_em["Business, building and other support services", ], start = c(1997, 1), frequency = 12)
+
+agriculture_ts <- ts(value_mat_em["Agriculture", ], start = c(1997, 1), frequency = 12)
+
+forestry_ts <- ts(value_mat_em["Forestry, fishing, mining, quarrying, oil and gas", ], start = c(1997, 1), frequency = 12)
+
+forestry2_ts <- ts(value_mat_em["Forestry and logging and support activities for forestry", ], start = c(1997, 1), frequency = 12)
+
+fishing_ts <- ts(value_mat_em["Fishing, hunting and trapping", ], start = c(1997, 1), frequency = 12)
+
+mining_ts <- ts(value_mat_em["Mining, quarrying, and oil and gas extraction", ], start = c(1997, 1), frequency = 12)
+##
+
+```
+
+-   read [unemployment rate]{.underline} data (unit: 1000 people or percentage)
+
+```{r}
+unemployment_data <- read.csv("unemployment_rate.csv", header = FALSE, check.names = FALSE)
+
+characteristic_names <- unemployment_data[-1, 1]
+
+value_mat_un <- unemployment_data[-1, -1]
+
+value_mat_un[] <- lapply(value_mat_un, function(x) as.numeric(gsub(",", "", x)))
+
+value_mat_un <- as.matrix(value_mat_un)
+
+rownames(value_mat_un) <- characteristic_names
+```
+
+-   transform unemployment rate data of each industry into ts object
+
+```{r}
+
+# person in thousands
+population_ts <- ts(value_mat_un["Population", ], start = c(1997, 1), frequency = 12)
+
+labour_force_ts <- ts(value_mat_un["Labour force", ], start = c(1997, 1), frequency = 12)
+
+employment_ts <- ts(value_mat_un["Employment", ], start = c(1997, 1), frequency = 12)
+
+full_time_employment_ts <- ts(value_mat_un["Full-time employment", ], start = c(1997, 1), frequency = 12)
+
+part_time_employment_ts <- ts(value_mat_un["Part-time employment", ], start = c(1997, 1), frequency = 12)
+
+unemployment_ts <- ts(value_mat_un["Unemployment", ], start = c(1997, 1), frequency = 12)
+
+# rate --> percentage
+unemployment_rate_ts <- ts(value_mat_un["Unemployment rate", ], start = c(1997, 1), frequency = 12)
+
+# participation rate = unemployment rate + employment rate
+participation_rate_ts <- ts(value_mat_un["Participation rate", ], start = c(1997, 1), frequency = 12)
+
+employment_rate_ts <- ts(value_mat_un["Employment rate", ], start = c(1997, 1), frequency = 12)
+
+```
+
+-   read [GDP by industry]{.underline} data (unit: 1,000,000 cad)
+
+```{r}
+gdp_data <- read.csv("gdpindustry.csv", header = FALSE, check.names = FALSE)
+
+industry_names_gdp <- trimws(as.character(gdp_data[-1, 1]))
+value_mat_gdp <- gdp_data[-1, -1]
+
+value_mat_gdp[] <- lapply(value_mat_gdp, function(x) as.numeric(gsub(",", "", x)))
+value_mat_gdp <- as.matrix(value_mat_gdp)
+
+rownames(value_mat_gdp) <- industry_names_gdp
+```
+
+-   transform GDP by industry industry into ts object
+
+```{r}
+total_gdp_ts <- ts(value_mat_gdp["All industries", ], start = c(1997, 1), frequency = 12)
+
+goods_gdp_ts <- ts(value_mat_gdp["Goods-producing industries", ], start = c(1997, 1), frequency = 12)
+
+services_gdp_ts <- ts(value_mat_gdp["Services-producing industries", ], start = c(1997, 1), frequency = 12)
+
+nondurables_gdp_ts <- ts(value_mat_gdp["Non-durable manufacturing industries", ], start = c(1997, 1), frequency = 12)
+
+durable_gdp_ts <- ts(value_mat_gdp["Durable manufacturing industries", ], start = c(1997, 1), frequency = 12)
+
+utilities_gdp_ts <- ts(value_mat_gdp["Utilities", ], start = c(1997, 1), frequency = 12)
+
+construction_gdp_ts <- ts(value_mat_gdp["Construction", ], start = c(1997, 1), frequency = 12)
+
+manufacturing_gdp_ts <- ts(value_mat_gdp["Manufacturing", ], start = c(1997, 1), frequency = 12)
+
+wholesale_gdp_ts <- ts(value_mat_gdp["Wholesale trade", ], start = c(1997, 1), frequency = 12)
+
+retail_gdp_ts <- ts(value_mat_gdp["Retail trade", ], start = c(1997, 1), frequency = 12)
+
+transportation_gdp_ts <- ts(value_mat_gdp["Transportation and warehousing", ], start = c(1997, 1), frequency = 12)
+
+info_gdp_ts <- ts(value_mat_gdp["Information and cultural industries", ], start = c(1997, 1), frequency = 12)
+
+finance_gdp_ts <- ts(value_mat_gdp["Finance and insurance", ], start = c(1997, 1), frequency = 12)
+
+real_estate_gdp_ts <- ts(value_mat_gdp["Real estate and rental and leasing", ], start = c(1997, 1), frequency = 12)
+
+professional_gdp_ts <- ts(value_mat_gdp["Professional, scientific and technical services", ], start = c(1997, 1), frequency = 12)
+
+educational_gdp_ts <- ts(value_mat_gdp["Educational services", ], start = c(1997, 1), frequency = 12)
+
+health_care_gdp_ts <- ts(value_mat_gdp["Health care and social assistance", ], start = c(1997, 1), frequency = 12)
+
+accommodation_gdp_ts <- ts(value_mat_gdp["Accommodation and food services", ], start = c(1997, 1), frequency = 12)
+
+other_gdp_ts <- ts(value_mat_gdp["Other services (except public administration)", ], start = c(1997, 1), frequency = 12)
+
+public_gdp_ts <- ts(value_mat_gdp["Public administration", ], start = c(1997, 1), frequency = 12)
+
+
+## no matching employment
+industrial_production_ts <- ts(value_mat_gdp["Industrial production", ], start = c(1997, 1), frequency = 12)
+
+energy_sector_ts <- ts(value_mat_gdp["Energy sector", ], start = c(1997, 1), frequency = 12)
+
+agriculture_forestry_fishing_hunting_ts <- ts(value_mat_gdp["Agriculture, forestry, fishing and hunting", ], start = c(1997, 1), frequency = 12)
+
+mining_quarrying_oil_gas_ts <- ts(value_mat_gdp["Mining, quarrying, and oil and gas extraction", ], start = c(1997, 1), frequency = 12)
+
+administrative_support_waste_ts <- ts(value_mat_gdp["Administrative and support, waste management and remediation services", ], start = c(1997, 1), frequency = 12)
+
+arts_entertainment_recreation_ts <- ts(value_mat_gdp["Arts, entertainment and recreation", ], start = c(1997, 1), frequency = 12)
+##
+```
