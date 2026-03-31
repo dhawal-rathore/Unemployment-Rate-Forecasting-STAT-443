@@ -66,11 +66,16 @@ accuracy(arima_fc, test)
 # with external economic indicators.
 
 
-#trying a few more models
+#trying a few more models - we need differencing due to non staionarity
 fit1 <- Arima(train, order=c(1,1,1))
 fit2 <- Arima(train, order=c(2,1,1))
 fit3 <- Arima(train, order=c(1,1,2))
-AIC(fit_auto, fit1, fit2, fit3)
+
+#adding extra models as suggested in EDA
+fit4 <- Arima(train, order=c(0,1,1))
+fit5 <- Arima(train, order=c(1,1,0))
+
+AIC(fit_auto, fit1, fit2, fit3, fit4, fit5)
 
 # We observe that the model selected by auto.arima outperforms all the manual ARIMA
 # models fitted above, as it has the lowest AIC (-262.34) 
