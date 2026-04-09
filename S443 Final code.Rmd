@@ -1,0 +1,453 @@
+---
+title: "s443 group project"
+author: "AroraLinMajumdarRathore"
+date: "2026-03-26"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+#### Step 1: load and clean data set
+
+-   load libraries
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(tidyverse)
+library(lubridate)
+library(forecast)
+library(janitor)
+```
+
+-   Note: all data starts from Jan 1997 to Dec 2025. Data obtained from Statistics Canada.
+
+    -   Target time series:
+        -   [unemployment rate]{.underline} (unit: percentage)
+    -   External variables:
+        -   [employment by industry]{.underline} (unit: 1000 people)
+        -   [GDP by industry]{.underline} (unit: 1,000,000 cad)
+
+-   Reference:
+
+    -   <https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410002201> : Employment data per industry
+
+    -   <https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410028701> : Labour Force Characteristics (Unemployment rate)
+
+    -   <https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3610043401> : GDP Data per industry
+
+```{r}
+eda_data <- read_csv("eda_data.csv")
+```
+
+#### Step 2.1: Explanatory Data Analysis (Summary table and Plots):
+
+-   Summary table
+
+```{r}
+summary(eda_data)
+
+summary_table <- tibble(
+  Variable = c("Unemployment rate", "Total employment", "All-industry GDP"),
+  
+  Mean = c(
+    mean(eda_data$unemployment_rate),
+    mean(eda_data$total_employment),
+    mean(eda_data$all_gdp)
+  ),
+  
+  SD = c(
+    sd(eda_data$unemployment_rate),
+    sd(eda_data$total_employment),
+    sd(eda_data$all_gdp)
+  ),
+  
+  Min = c(
+    min(eda_data$unemployment_rate),
+    min(eda_data$total_employment),
+    min(eda_data$all_gdp)
+  ),
+  
+  Max = c(
+    max(eda_data$unemployment_rate),
+    max(eda_data$total_employment),
+    max(eda_data$all_gdp)
+  )
+) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
+
+summary_table
+```
+
+-   Plots
+
+```{r}
+# Unemployment Rate plot
+options(repr.plot.width = 9, repr.plot.height = 5)
+unemp_plot <- ggplot(eda_data, aes(x = month, y = unemployment_rate)) + 
+    geom_line() +
+    labs(
+    title = "Monthly Canadian Unemployment Rate",
+    x = "Month",
+    y = "Unemployment rate (%)")
+  
+unemp_plot
+
+# Total employment plot
+options(repr.plot.width = 9, repr.plot.height = 5)
+tot_emp_plot <- ggplot(eda_data, aes(x = month, y = total_employment)) + 
+    geom_line() +
+    labs(
+    title = "Total Employment ",
+    x = "Month",
+    y = "Employment (in thousands)")
+tot_emp_plot
+
+# All-industry GDP plot
+options(repr.plot.width = 9, repr.plot.height = 5)
+all_gdp_plot <- ggplot(eda_data, aes(x = month, y = all_gdp)) + 
+    geom_line() +
+    labs(
+    title = "All-Industry GDP",
+    x = "Month",
+    y = "GDP (in million CAD)")
+all_gdp_plot
+```
+
+-   **ACF and PACF plot** **of monthly unemployment rate**
+
+```{r}
+#Create time series object
+unemp_ts <- ts(eda_data$unemployment_rate, start = c(1997, 1), frequency = 12)
+
+#ACF/PACF of the unemployment ts object
+acf(unemp_ts, main = "ACF of Monthly Unemployment Rate")
+pacf(unemp_ts, main = "PACF of Monthly Unemployment Rate")
+```
+
+-   Monthly unemployment rate is not stationary
+
+-   **ACF/PACF of the differenced unemployment ts object**
+
+```{r}
+acf(diff(unemp_ts), main = "ACF of Differenced Unemployment Rate")
+pacf(diff(unemp_ts), main = "PACF of Differenced Unemployment Rate")
+```
+
+-   Find **correlation** between unemployment rate, total_employment and all-industry GDP
+
+```{r}
+#Relationship investigation between variables?
+library(corrplot)
+
+corr_data <- eda_data %>%
+  select(-month)
+
+cor_matrix <- cor(corr_data)
+print(cor_matrix)
+```
+
+#### Step 2.2: Baseline forecast (Persistence and Average)
+
+```{r}
+train <- window(unemp_ts, end = c(2018, 12))
+test <- window(unemp_ts, start = c(2019, 1))
+length(train)
+length(test)
+```
+
+-   Average forecast
+
+```{r}
+mean_fc <- meanf(train, h = length(test))
+accuracy(mean_fc, test)
+
+autoplot(mean_fc) +
+  autolayer(test, series = "Actual") +
+  labs(
+    title = "Mean Forecast vs Actual Unemployment Rate",
+    x = "Year",
+    y = "Unemployment rate (%)"
+  )
+```
+
+-   Persistence forecast
+
+```{r}
+persistent_fc <- naive(train, h = length(test))
+accuracy(persistent_fc, test)
+
+autoplot(persistent_fc) +
+  autolayer(test, series = "Actual") +
+  labs(
+    title = "Persistent Forecast vs Actual Unemployment Rate",
+    x = "Year",
+    y = "Unemployment rate (%)"
+  )
+```
+
+#### Step 3.1: Holt exponential smoothing
+
+```{r}
+# install.packages("forecast")
+library(forecast)
+```
+
+```{r}
+
+holt_fc <- holt(train, h = length(test))
+plot(holt_fc,  main = "Forecasts from Holt's method", xlab = "Year", ylab = "Unemployment rate (%)", sub = "Figure 8. Holt Forecast vs Actual value on Test Set")
+lines(test, col = "red")
+accuracy(holt_fc, test)
+
+```
+
+-   From above, we observe that the training error is low, indicating a good fit, however, the test RMSE is significantly higher (2.48), thus showing poor forecasting performance.
+
+    This is mainly due to the model's inability to capture the sudden spike in unemployment during COVID-19 in 2020. Additionally, the high residual autocorrelation (ACF1 = 0.905) suggests that the model does not fully capture the underlying time dependence in the series.
+
+#### Step 3.2: ARIMA model
+
+```{r}
+#Training set
+fit_auto <- auto.arima(train)
+
+#test set
+arima_fc <- forecast(fit_auto, h=length(test))
+plot(arima_fc)
+lines(test, col="red")
+accuracy(arima_fc, test)
+```
+
+-   Based on the RMSE, ARIMA performs slightly better than Holt's model since it has lower RMSE. However, it still struggles to capture the sudden spike during COVID, leading to large prediction errors.
+
+    The forecasts are relatively flat and fail to adapt to abrupt changes in the data.
+
+    Thus, univariate models may be insufficient motivating the use of ARIMAX models with external economic indicators.
+
+-   Trying a few more models - we need differencing due to non staionarity
+
+```{r}
+fit1 <- Arima(train, order=c(1,1,1))
+fit2 <- Arima(train, order=c(2,1,1))
+fit3 <- Arima(train, order=c(1,1,2))
+# adding extra models as suggested in EDA
+fit4 <- Arima(train, order=c(0,1,1))
+fit5 <- Arima(train, order=c(1,1,0))
+
+
+AIC(fit_auto, fit1, fit2, fit3, fit4, fit5)
+```
+
+-   We observe that the model selected by auto.arima outperforms all the manual ARIMA models fitted above, as it has the lowest AIC (-262.34)
+
+```{r}
+# trying for another model using
+# >auto.arima(train, stepwise=FALSE, approximation=FALSE)
+# gives us ARIMA(1,1,2)(0,0,1)[12] with AIC = -264.88
+
+fit_new <- Arima(train, order=c(1,1,2), seasonal=c(0,0,1))
+arima_fc_new <- forecast(fit_new, h=length(test))
+plot(arima_fc_new,
+     main = "Forecasts from ARIMA(1,1,2)(0,0,1)[12]",
+     xlab = "Year",
+     ylab = "Unemployment rate (%)")
+lines(test, col="red")
+accuracy(arima_fc_new, test)
+```
+
+```{r}
+AIC(fit_auto,fit_new)
+```
+
+-   By comparing the ARIMA (1,1,1)(1,0,2)[12] and ARIMA(1,1,2)(0,0,1)[12], we observe that first has a higher AIC(-262.34) but lower RMSE(2.14),whereas the latter has a lower AIC (-264.88) and higher RMSE (2.15)
+
+    Thus, the new ARIMA model fits the training data better as indicated by the low AIC, but does not improve prediction accuracy, indicated by higher RMSE. Thus, this suggests overfitting and hence we consider ARIMA (1,1,1)(1,0,2)[12] as our final ARIMA model.
+
+    The original series exhibits non-stationarity due to trend, which is also addressed through first-order differencing (d = 1) in the ARIMA models.
+
+```{r}
+checkresiduals(holt_fc)
+checkresiduals(fit_auto)
+Box.test(residuals(fit_auto), lag=20, type="Ljung-Box")
+```
+
+-   The residual diagnostics for Holt's method show significant autocorrelation, indicating that the residuals are not random, and thus, says that the model fails to capture temporal patterns in the data. (Since the p-value is also 0.006 \< 0.05, this also implies that [we reject the hypothesis that the residuals are random]{.underline})
+
+    The ARIMA model produces residuals closer to white noise, with most autocorrelations lying within the confidence bounds, thus, indicating that the model captures underlying temporal dependence better than Holt's method. Here the p-value = 0.435 \> 0.05 =\> [we do not reject that the residuals are random]{.underline}
+
+    Similarly in the box test, we observe a p-value = 0.5722 \> 0.05, thus we arrive at the same conclusion of [not rejecting for the ARIMA model]{.underline}
+
+#### Step 3.3: ARIMAX model
+
+-   Load data
+
+    -   unemp_ts \<- ts(eda_data\$unemployment_rate, start = c(1997, 1), frequency = 12)
+
+    -   train \<- window(unemp_ts, end = c(2018, 12))
+
+    -   test \<- window(unemp_ts, start = c(2019, 1))
+
+-   Transform GDP into log(gdp) since it's an economic indicator
+
+```{r}
+loggdp <- log(eda_data$all_gdp)
+employ <- eda_data$total_employment
+```
+
+-   Find the correlation between two predictors
+
+```{r}
+cor(loggdp,employ)
+```
+
+-   Noticing a high correlation rate between log_gdp and total_employment, we can choose to ignore total_employment to train models faster.
+
+-   Create time series for log(gdp) , and split it into test and train data
+
+```{r}
+xreg_ts <- ts(loggdp, start = c(1997, 1), frequency = 12)
+
+xreg_train <- window(xreg_ts, end=c(2018,12))
+xreg_test  <- window(xreg_ts, start=c(2019,1))
+
+length(train)
+length(test)
+
+length(xreg_train)
+length(xreg_test)
+```
+
+```{r}
+
+plot(unemp_ts,
+     col = "black",
+     main = "Train vs Test",
+     xlab = "Year",
+     ylab = "Unemployment rate (%)")
+
+lines(train, col = "blue")
+lines(test, col = "red")
+
+legend("topright",
+       legend = c("Train", "Test"),
+       col = c("blue", "red"),
+       lty = 1)
+
+```
+
+```{r}
+par(mfrow = c(1, 2))
+
+plot(xreg_ts, col = "black", main = "Employment: Train vs Test", ylab = "log(gdp)", xlab="Year")
+lines(xreg_train, col = "blue", lwd = 2)
+lines(xreg_test, col = "red", lwd = 2)
+legend("topleft", legend = c("Train", "Test"), col = c("blue", "red"), lty = 1, lwd = 2)
+
+```
+
+```{r}
+
+armax_model_auto  <- auto.arima(train, xreg = xreg_train,
+                           seasonal = TRUE,
+                           stepwise = FALSE,
+                           approximation = FALSE)
+
+summary(armax_model_auto)
+
+```
+
+```{r}
+armax_fc_auto <- forecast(armax_model_auto, xreg = xreg_test)
+plot(armax_fc_auto,
+     main = "ARIMAX Forecast: Unemployment Rate",
+     ylab = "Unemployment Rate (%)",
+     xlab = "Time")
+
+lines(test, col = "red")
+accuracy(armax_fc_auto, test)
+```
+
+```{r}
+checkresiduals(armax_fc_auto)
+Box.test(residuals(armax_model_auto), lag = 20, type = "Ljung-Box")
+```
+
+-   Since our p-value for the auto fitted ARMAX model is 0.7325 \> 0.05, show our model has captured most mathematical patterns in the data. This is also apparent as our residuals are mostly random noise (except for a few large spikes).
+
+    Like this ARIMA model, the ARMAX model too failed to perform well for the large spike during 2020, but the 95% confidence interval usually captures the true value of unemployment percentage.
+
+-   [More models with slight variation to see if they perform better on out of sample data.]{.underline}
+
+```{r}
+model_1 <- Arima(train, xreg = xreg_train, order = c(0, 1, 1), seasonal = c(0, 0, 1), include.drift = TRUE)
+model_2 <- Arima(train, xreg = xreg_train, order = c(0, 1, 0), seasonal = c(0, 0, 1), include.drift = TRUE)
+model_3 <- Arima(train, xreg = xreg_train, order = c(1, 1, 0), seasonal = c(0, 0, 1), include.drift = TRUE)
+model_4 <- Arima(train, xreg = xreg_train, order = c(1, 1, 1), seasonal = c(0, 0, 1), include.drift = TRUE)
+model_5 <- Arima(train, xreg = xreg_train, order = c(0, 1, 2), seasonal = c(0, 0, 1), include.drift = TRUE)
+
+model_6  <- Arima(train, xreg = xreg_train, order = c(0, 1, 1), seasonal = c(0, 1, 1))
+model_7  <- Arima(train, xreg = xreg_train, order = c(0, 1, 0), seasonal = c(0, 1, 1))
+model_8  <- Arima(train, xreg = xreg_train, order = c(1, 1, 0), seasonal = c(0, 1, 1))
+model_9  <- Arima(train, xreg = xreg_train, order = c(1, 1, 1), seasonal = c(0, 1, 1))
+model_10 <- Arima(train, xreg = xreg_train, order = c(0, 1, 2), seasonal = c(0, 1, 1))
+# model_11 is the original baseline model
+model_11 <- Arima(train, xreg = xreg_train, order = c(0, 1, 1), seasonal = c(0, 0, 2), include.drift = TRUE)
+model_12 <- Arima(train, xreg = xreg_train, order = c(0, 1, 0), seasonal = c(0, 0, 2), include.drift = TRUE)
+model_13 <- Arima(train, xreg = xreg_train, order = c(1, 1, 0), seasonal = c(0, 0, 2), include.drift = TRUE)
+model_14 <- Arima(train, xreg = xreg_train, order = c(1, 1, 1), seasonal = c(0, 0, 2), include.drift = TRUE)
+model_15 <- Arima(train, xreg = xreg_train, order = c(0, 1, 2), seasonal = c(0, 0, 2), include.drift = TRUE)
+
+armax_fc_1  <- forecast(model_1,  xreg = xreg_test)
+armax_fc_2  <- forecast(model_2,  xreg = xreg_test)
+armax_fc_3  <- forecast(model_3,  xreg = xreg_test)
+armax_fc_4  <- forecast(model_4,  xreg = xreg_test)
+armax_fc_5  <- forecast(model_5,  xreg = xreg_test)
+
+armax_fc_6  <- forecast(model_6,  xreg = xreg_test)
+armax_fc_7  <- forecast(model_7,  xreg = xreg_test)
+armax_fc_8  <- forecast(model_8,  xreg = xreg_test)
+armax_fc_9  <- forecast(model_9,  xreg = xreg_test)
+armax_fc_10 <- forecast(model_10, xreg = xreg_test)
+
+armax_fc_11 <- forecast(model_11, xreg = xreg_test)
+armax_fc_12 <- forecast(model_12, xreg = xreg_test)
+armax_fc_13 <- forecast(model_13, xreg = xreg_test)
+armax_fc_14 <- forecast(model_14, xreg = xreg_test)
+armax_fc_15 <- forecast(model_15, xreg = xreg_test)
+
+accuracy(armax_fc_1,  test)
+accuracy(armax_fc_2,  test)
+accuracy(armax_fc_3,  test)
+accuracy(armax_fc_4,  test)
+accuracy(armax_fc_5,  test)
+
+accuracy(armax_fc_6,  test)
+accuracy(armax_fc_7,  test)
+accuracy(armax_fc_8,  test)
+accuracy(armax_fc_9,  test)
+accuracy(armax_fc_10, test)
+
+accuracy(armax_fc_11, test)
+accuracy(armax_fc_12, test)
+accuracy(armax_fc_13, test)
+accuracy(armax_fc_14, test)
+accuracy(armax_fc_15, test)
+```
+
+```{r}
+plot(armax_fc_15,
+     main = "ARMAX (0,1,2) Forecast: Unemployment Rate",
+     ylab = "Unemployment Rate (%)",
+     xlab = "Time",
+     sub = "Figure 5: ARIMAX forecast vs. actual unemployment rate")
+
+lines(test, col = "red")
+```
+
+```{r}
+checkresiduals(armax_fc_15)
+Box.test(residuals(armax_fc_15), lag = 20, type = "Ljung-Box")
+```
